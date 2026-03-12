@@ -5,37 +5,76 @@ import './index.css';
 function App() {
   const [currentScreen, setCurrentScreen] = useState('welcome'); // welcome, tasks, completion
   const [currentTaskIndex, setCurrentTaskIndex] = useState(0);
-  const [count, setCount] = useState(0);
+  const [counts, setCounts] = useState(() => {
+    // Load counts from localStorage on initial render
+    const savedData = localStorage.getItem('adhkar_progress');
+    if (savedData) {
+      try {
+        const { savedCounts, date } = JSON.parse(savedData);
+        const today = new Date().toLocaleDateString();
+        // Reset if it's a new day
+        if (date === today) {
+          return savedCounts;
+        }
+      } catch {
+        console.error("Failed to parse saved progress");
+      }
+    }
+    return [];
+  });
+
+  // Save to localStorage whenever counts change (only if counts array is not empty)
+  React.useEffect(() => {
+    if (counts.length > 0) {
+      const dataToSave = {
+        savedCounts: counts,
+        date: new Date().toLocaleDateString()
+      };
+      localStorage.setItem('adhkar_progress', JSON.stringify(dataToSave));
+    }
+  }, [counts]);
 
   const startApp = () => {
     setCurrentScreen('tasks');
     setCurrentTaskIndex(0);
-    setCount(tasks[0].targetCounter);
+    // Only reset counts if we don't have existing counts for today
+    if (counts.length === 0) {
+      setCounts(tasks.map(t => t.targetCounter));
+    }
   };
 
   const handleCounterClick = () => {
-    if (count > 0) {
-      setCount(prev => prev - 1);
+    if (counts[currentTaskIndex] > 0) {
+      const newCounts = [...counts];
+      newCounts[currentTaskIndex] -= 1;
+      setCounts(newCounts);
     }
   };
 
   const currentTask = tasks[currentTaskIndex];
-  const isCompleted = count === 0;
+  const isCompleted = counts.length > 0 && counts[currentTaskIndex] === 0;
 
   const nextTask = () => {
     if (currentTaskIndex < tasks.length - 1) {
       setCurrentTaskIndex(prev => prev + 1);
-      setCount(tasks[currentTaskIndex + 1].targetCounter);
     } else {
       setCurrentScreen('completion');
+    }
+  };
+
+  const prevTask = () => {
+    if (currentTaskIndex > 0) {
+      setCurrentTaskIndex(prev => prev - 1);
     }
   };
 
   const resetApp = () => {
     setCurrentScreen('welcome');
     setCurrentTaskIndex(0);
-    setCount(0);
+    setCounts([]);
   };
+
+  const completedTasksCount = counts.filter(c => c === 0).length;
 
   return (
     <div className="app-container fade-in">
@@ -43,7 +82,7 @@ function App() {
         <div className="welcome-container fade-in" style={{ position: 'relative', height: '100%', paddingBottom: '3rem' }}>
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flex: 1 }}>
             <img 
-              src="/logo.png" 
+              src={`${import.meta.env.BASE_URL}logo.png`} 
               alt="شعار زاد العشر" 
               style={{ width: '120px', height: '120px', marginBottom: '1.5rem', borderRadius: '25px', boxShadow: '0 10px 25px rgba(196, 154, 69, 0.2)' }} 
             />
@@ -100,15 +139,30 @@ function App() {
                 className={`counter-circle ${isCompleted ? 'completed' : ''}`}
                 onClick={handleCounterClick}
               >
-                {isCompleted ? '✓' : count}
+                {isCompleted ? '✓' : counts[currentTaskIndex]}
               </div>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', marginTop: '2rem', gap: '1rem' }}>
+              <button 
+                className="action-btn btn-primary"
+                onClick={nextTask}
+                style={{ flex: 1 }}
+              >
+                {currentTaskIndex === tasks.length - 1 ? 'إنهاء الأذكار' : 'التالي'}
+              </button>
 
               <button 
-                className={`action-btn btn-primary`}
-                onClick={nextTask}
-                disabled={!isCompleted}
+                className="action-btn"
+                onClick={prevTask}
+                disabled={currentTaskIndex === 0}
+                style={{ 
+                  backgroundColor: currentTaskIndex === 0 ? '#d1d8d4' : 'var(--text-secondary)', 
+                  color: currentTaskIndex === 0 ? '#8a9c90' : 'white',
+                  flex: 1
+                }}
               >
-                {currentTask.buttonText}
+                السابق
               </button>
             </div>
           </div>
@@ -119,6 +173,23 @@ function App() {
         <div className="completion-container fade-in">
           <div className="check-icon">✓</div>
           <h2 className="completion-title">تقبل الله طاعتكم</h2>
+          
+          <div style={{
+            background: 'var(--card-bg)',
+            padding: '1.5rem',
+            borderRadius: '15px',
+            marginBottom: '2rem',
+            border: '1px solid rgba(196, 154, 69, 0.3)',
+            boxShadow: '0 4px 15px rgba(0,0,0,0.05)',
+            width: '100%',
+            maxWidth: '300px'
+          }}>
+            <h3 style={{ color: 'var(--accent)', fontSize: '1.3rem', marginBottom: '0.8rem' }}>النتيجة المنجزة</h3>
+            <p style={{ fontSize: '1.2rem', fontWeight: 'bold', margin: 0 }}>
+              أنجزت {completedTasksCount} من أصل {tasks.length} مهام
+            </p>
+          </div>
+
           <p className="completion-text">
             لقد أتممت جميع المهام والأذكار لهذا اليوم. 
             <br />
